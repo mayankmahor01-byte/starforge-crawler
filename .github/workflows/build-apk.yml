@@ -1,0 +1,50 @@
+name: Build Starforge Crawler Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  export-android-apk:
+    name: Export Android Debug APK (Godot 4.3)
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Link Godot export templates & Android debug keystore
+        run: |
+          mkdir -p "$HOME/.local/share/godot"
+          if [ -d "/root/.local/share/godot/export_templates" ] && [ ! -e "$HOME/.local/share/godot/export_templates" ]; then
+            ln -s /root/.local/share/godot/export_templates "$HOME/.local/share/godot/export_templates"
+          fi
+          mkdir -p "$HOME/.android"
+          if [ -f "/root/.android/debug.keystore" ] && [ ! -f "$HOME/.android/debug.keystore" ]; then
+            cp /root/.android/debug.keystore "$HOME/.android/debug.keystore"
+          elif [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkey -v -keystore "$HOME/.android/debug.keystore" \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Import project resources headlessly
+        run: |
+          godot --headless --import --quit || true
+
+      - name: Export signed Debug APK
+        run: |
+          mkdir -p build/android
+          godot --headless --verbose --export-debug "Android" build/android/starforge-crawler.apk
+          ls -lh build/android/starforge-crawler.apk
+
+      - name: Upload Android APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: starforge-crawler-vs1-apk
+          path: build/android/starforge-crawler.apk
+          retention-days: 30
