@@ -73,37 +73,26 @@ jobs:
             -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
-          # 4. Prepare isolated XDG data & config directories (eliminates /root vs /github/home mismatch)
+          # 4. Prepare isolated XDG data & config directories
           mkdir -p "$PWD/.godot_data/godot" "$PWD/.godot_config/godot" "$HOME/.local/share/godot" "$HOME/.config/godot"
           if [ -d "/root/.local/share/godot/export_templates" ]; then
             ln -sfn /root/.local/share/godot/export_templates "$PWD/.godot_data/godot/export_templates"
             ln -sfn /root/.local/share/godot/export_templates "$HOME/.local/share/godot/export_templates"
           fi
 
-          # 5. Write clean Godot 4.3 EditorSettings into every possible config location
+          # 5. Write clean Godot 4.3 EditorSettings (indented printf avoids YAML heredoc syntax errors)
           for CFG_DIR in "$PWD/.godot_config/godot" "$HOME/.config/godot" "/root/.config/godot"; do
             mkdir -p "$CFG_DIR" 2>/dev/null || continue
             for FNAME in "editor_settings-4.3.tres" "editor_settings-4.tres"; do
-              cat <<EOF > "$CFG_DIR/$FNAME"
-[gd_resource type="EditorSettings" format=3]
-
-[resource]
-export/android/java_sdk_path = "$JAVA_SDK"
-export/android/android_sdk_path = "$ANDROID_SDK"
-export/android/debug_keystore = "$KEYSTORE_PATH"
-export/android/debug_keystore_user = "androiddebugkey"
-export/android/debug_keystore_pass = "android"
-EOF
+              printf '[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/java_sdk_path = "%s"\nexport/android/android_sdk_path = "%s"\nexport/android/debug_keystore = "%s"\nexport/android/debug_keystore_user = "androiddebugkey"\nexport/android/debug_keystore_pass = "android"\n' \
+                "$JAVA_SDK" "$ANDROID_SDK" "$KEYSTORE_PATH" > "$CFG_DIR/$FNAME"
             done
           done
 
-          # 6. Also write keystore options directly into export_presets.cfg as a second guarantee
+          # 6. Write keystore options directly into export_presets.cfg as a second guarantee
           sed -i '/^keystore\/debug/d' export_presets.cfg
-          cat <<EOF >> export_presets.cfg
-keystore/debug="$KEYSTORE_PATH"
-keystore/debug_user="androiddebugkey"
-keystore/debug_password="android"
-EOF
+          printf 'keystore/debug="%s"\nkeystore/debug_user="androiddebugkey"\nkeystore/debug_password="android"\n' \
+            "$KEYSTORE_PATH" >> export_presets.cfg
 
           echo "=== VERIFIED ANDROID BUILD CONFIG ==="
           echo "JAVA_SDK=$JAVA_SDK"
